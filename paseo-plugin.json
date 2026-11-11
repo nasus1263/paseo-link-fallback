@@ -1,0 +1,8 @@
+{
+  "id": "paseo-link-fallback",
+  "name": "파일 링크 보정",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.15.4"
+  }
+}
