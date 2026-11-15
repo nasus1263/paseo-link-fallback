@@ -1,10 +1,8 @@
 import { type PluginTimelineItemProps, useAgent, useRpc, useWorkspace } from "@getpaseo/plugin/client";
 import { Markdown } from "@getpaseo/plugin/client/ui";
 import { useEffect, useMemo, useState } from "react";
-import { View } from "react-native";
 import { z } from "zod";
 import {
-  chooserMarkdown,
   distinctPaths,
   extractLinkTokens,
   type Resolution,
@@ -18,7 +16,7 @@ const CACHE_TTL_MS = 30_000;
 const cache = new Map<string, Promise<Resolution[]>>();
 
 /** An assistant message whose file references point at the files found for them. */
-export function ResolvedMessage({ item, agentId, theme }: PluginTimelineItemProps<z.infer<typeof messageSchema>>) {
+export function ResolvedMessage({ item, agentId }: PluginTimelineItemProps<z.infer<typeof messageSchema>>) {
   const { text } = item.data;
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const workspaceId = useAgent(agentId, (agent) => agent.workspaceId);
@@ -29,31 +27,13 @@ export function ResolvedMessage({ item, agentId, theme }: PluginTimelineItemProp
   const paths = useMemo(() => distinctPaths(tokens), [tokens]);
   const results = useResolutions(paths, cwd ?? "", root);
 
-  const { markdown, ambiguities } = useMemo(() => {
-    if (!results) return { markdown: text, ambiguities: [] };
+  const markdown = useMemo(() => {
+    if (!results) return text;
     const byPath = new Map(paths.map((path, index) => [path, results[index]!] as const));
     return rewriteMessage(text, tokens, byPath, root);
   }, [text, tokens, paths, results, root]);
 
-  return (
-    <View>
-      <Markdown>{markdown}</Markdown>
-      {ambiguities.map((ambiguity) => (
-        <View
-          key={ambiguity.target.path}
-          style={{
-            marginTop: 8,
-            paddingHorizontal: 12,
-            paddingVertical: 4,
-            borderLeftWidth: 3,
-            borderLeftColor: theme.colors.border,
-          }}
-        >
-          <Markdown>{chooserMarkdown(ambiguity, root)}</Markdown>
-        </View>
-      ))}
-    </View>
-  );
+  return <Markdown>{markdown}</Markdown>;
 }
 
 /** The daemon's resolution of each path, or null until it answers. */

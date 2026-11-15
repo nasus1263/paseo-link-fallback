@@ -21,14 +21,14 @@ export interface LinkToken {
 
 const resolutionSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("found"), path: z.string() }),
-  z.object({ status: z.literal("multiple"), paths: z.array(z.string()) }),
   z.object({ status: z.literal("missing") }),
 ]);
 export type Resolution = z.infer<typeof resolutionSchema>;
 
 /**
  * Finds the file each path refers to: as written (absolute, or relative to the agent's cwd),
- * then relative to the workspace root, then by file name anywhere in the workspace.
+ * then relative to the workspace root, then by file name anywhere in the workspace, taking the
+ * best match when several files share the name.
  */
 export const resolveLinksRpc = defineRpc({
   name: "link-fallback.resolve",
@@ -79,52 +79,22 @@ export function distinctPaths(tokens: LinkToken[]): string[] {
   return [...new Set(tokens.map((token) => token.target.path))];
 }
 
-export interface Ambiguity {
-  label: string;
-  target: FileTarget;
-  paths: string[];
-}
-
-/**
- * Points every resolved reference at the file found for it, as a link Paseo opens in a file tab.
- * References with several matching files are left as written and returned for a chooser.
- */
+/** Points every resolved reference at the file found for it, as a link Paseo opens in a file tab. */
 export function rewriteMessage(
   text: string,
   tokens: LinkToken[],
   resolutions: ReadonlyMap<string, Resolution>,
   root: string,
-): { markdown: string; ambiguities: Ambiguity[] } {
+): string {
   let markdown = text;
-  const ambiguities: Ambiguity[] = [];
-  const seen = new Set<string>();
   for (const token of [...tokens].reverse()) {
     const resolution = resolutions.get(token.target.path);
-    if (resolution?.status === "multiple") {
-      if (!seen.has(token.target.path)) {
-        seen.add(token.target.path);
-        ambiguities.unshift({ label: token.label, target: token.target, paths: resolution.paths });
-      }
-      continue;
-    }
     if (resolution?.status !== "found") continue;
     const href = fileHref({ ...token.target, path: resolution.path }, root);
     const label = token.kind === "link" ? token.label : text.slice(token.start, token.end);
     markdown = `${markdown.slice(0, token.start)}[${label}](<${href}>)${markdown.slice(token.end)}`;
   }
-  return { markdown, ambiguities };
-}
-
-/** A Markdown list letting the user pick which of several same-named files to open. */
-export function chooserMarkdown(ambiguity: Ambiguity, root: string): string {
-  const name = ambiguity.target.path.split("/").at(-1) ?? ambiguity.target.path;
-  const items = ambiguity.paths.map((path) => {
-    const shown = relativeTo(root, path) ?? path;
-    return `- [\`${shown}\`](<${fileHref({ ...ambiguity.target, path }, root)}>)`;
-  });
-  return [`**\`${name}\`** 이름의 파일이 여러 개 있습니다. 열 파일을 고르세요.`, "", ...items].join(
-    "\n",
-  );
+  return markdown;
 }
 
 /**

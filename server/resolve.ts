@@ -26,7 +26,6 @@ const SKIPPED_DIRECTORIES = new Set([
 const MAX_INDEXED_FILES = 200_000;
 const MAX_INDEX_MS = 4_000;
 const INDEX_TTL_MS = 30_000;
-const MAX_CANDIDATES = 20;
 
 export async function resolveLinks({ cwd, root, paths }: RpcInput<typeof resolveLinksRpc>) {
   const results: Resolution[] = [];
@@ -51,16 +50,17 @@ async function resolveOne(written: string, cwd: string, root: string): Promise<R
     if (await isFile(candidate)) return found(candidate);
   }
 
-  // 3. A file of the same name anywhere in the workspace.
+  // 3. A file of the same name anywhere in the workspace; the best match when there are several.
   const name = segments.at(-1);
   if (!name) return { status: "missing" };
   const matches = (await fileIndex(root)).get(name.toLowerCase()) ?? [];
   if (matches.length === 0) return { status: "missing" };
-  if (matches.length === 1) return found(matches[0]!);
-  const ranked = [...matches].sort(
+  // Several files share the name: the one whose folders match the written path furthest up wins,
+  // then the shortest path.
+  const [best] = [...matches].sort(
     (a, b) => sharedTail(b, segments) - sharedTail(a, segments) || a.length - b.length,
   );
-  return { status: "multiple", paths: ranked.slice(0, MAX_CANDIDATES).map(slashes) };
+  return found(best!);
 }
 
 function found(path: string): Resolution {
