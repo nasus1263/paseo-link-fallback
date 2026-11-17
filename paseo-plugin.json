@@ -1,6 +1,7 @@
 {
   "id": "paseo-link-fallback",
   "name": "파일 링크 보정",
+  "description": "Makes file links in agent replies open even when the written path does not match the file exactly.",
   "media": [],
   "requirements": {
     "paseo": ">=0.15.4"
